@@ -1,0 +1,74 @@
+---
+title: "Inspecting the Militarized Dispute Locations dataset"
+author: "Ian Roberts"
+date: "April 6, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = F)
+knitr::opts_chunk$set(warning = F)
+```
+
+```{r mapYear, cache = TRUE}
+library(leaflet)
+library(Hmisc)
+mdl <- read.csv("c:/Users/Ian/Downloads/midloc-v1-1-MIDLOC_1.1.csv", header = T)
+mdl <- mdl[-grep(-9999.000000, mdl$latitude),]
+
+mdl$cutyear <- cut2(x = mdl$year, g = 5)
+
+groups <-  levels(mdl$cutyear)
+groupColors <-  colorFactor(palette = rainbow(n = 5), domain = mdl$cutyear)
+
+mapY = mdl %>% 
+        leaflet() %>% 
+          addTiles()
+        
+for(i in 1:5){
+mapY = mapY %>% addCircleMarkers(lat = subset(mdl, cutyear == groups[i])$latitude, 
+                         lng = subset(mdl, cutyear == groups[i])$longitude,
+                         clusterOptions = markerClusterOptions(),
+                         label = subset(mdl, cutyear == groups[i])$midlocmeasuringpoint,
+                         color = groupColors(subset(mdl, cutyear == groups[i])$cutyear),
+                         group = groups[i])
+}
+
+mapY %>% 
+        addLayersControl(overlayGroups = groups) %>% 
+        addLegend(position = "topright", 
+                  pal = groupColors, 
+                  values = mdl$cutyear)
+```
+
+```{r mapPrecision, cache=TRUE}
+library(leaflet)
+#mdl <- read.csv("c:/Users/Ian/Downloads/midloc-v1-1-MIDLOC_1.1.csv", header = T)
+#mdl <- mdl[-grep(-9999.000000, mdl$latitude),]
+
+groups <- levels(as.factor(mdl$precision))
+groupColors <- colorFactor(palette = rainbow(n = 5), domain = as.factor(mdl$precision))
+
+mapP = mdl %>% 
+        leaflet() %>% 
+        addTiles()
+
+for(i in 1:5){
+        mapP = mapP %>% addCircleMarkers(lat = subset(mdl, precision == groups[i])$latitude, 
+                                         lng = subset(mdl, precision == groups[i])$longitude,
+                                         clusterOptions = markerClusterOptions(),
+                                         label = subset(mdl, precision == groups[i])$midlocmeasuringpoint,
+                                         color = groupColors(subset(mdl, precision == groups[i])$precision),
+                                         radius = subset(mdl, precision == groups[i])$precision^2,
+                                         group = groups[i])
+}
+
+mapP %>% 
+        addLayersControl(overlayGroups = groups) %>% 
+        addLegend(position = "topright", 
+                  pal = groupColors, 
+                  values = c("1: Contested Point", 
+                             "2: Approximate Contested Point", 
+                             "3: Subnational Contested Area", 
+                             "4: Contested Border/River/Lake", 
+                             "5: Contested National Area"))
