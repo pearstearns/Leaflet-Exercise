@@ -1,7 +1,7 @@
 ---
-title: "Inspecting the Militarized Dispute Locations dataset"
+title: "Inspecting the Militarized Interstate Dispute Locations Dataset with leaflet"
 author: "Ian Roberts"
-date: "April 6, 2017"
+date: "April 9, 2017"
 output: html_document
 ---
 
@@ -10,28 +10,50 @@ knitr::opts_chunk$set(message = F)
 knitr::opts_chunk$set(warning = F)
 ```
 
-```{r mapYear, cache = TRUE}
-library(leaflet)
-library(Hmisc)
+##Introduction
+This document is visualizing and exploring the Militarized Interstate Dispute Locations dataset  from the Correlates of War Project, found [here](https://data.world/cow/militarized-dispute-locations). From Wikipedia: "Militarized Interstate Disputes (MID) are conflicts between states that do not involve a full scale war. A conflict is described as an MID if it causes fewer than 1000 casualties and some military force is used." 
+
+```{r summary}
 mdl <- read.csv("c:/Users/Ian/Downloads/midloc-v1-1-MIDLOC_1.1.csv", header = T)
 mdl <- mdl[-grep(-9999.000000, mdl$latitude),]
+
+summary(mdl)
+```
+
+First we load the data and remove any missing latitude and longitude values because they make `leaflet` malfunction. 
+
+Most of the variables are self-explanatory, but there are a few that need to be defined. The difference between *mid21location* and *midlocmeasuringpoint* is that the latter is the precise area, while the former is a comment on it. Precision is the scale of the MID and will be discussed more in detail in a later section. Onset is a binary variable, with 1 being the start of a conflict while 0 means it was a continuation.
+
+##Visualizations
+
+###By Year
+To examine the data in different ways we will use a `leaflet` map with multiple layers, with different layers on each map.
+
+The first permutation will be splitting by the year variable. Obviously 185 is too many layers, so we'll use `Hmisc::cut2` to make a factor variable, *cutyear* out of them. Each level of *cutyear* is a corresponds to a layer and color in the graph, meaning they can be removed from view or replaced. This can be manipualted through the stacked planes above the legend. Labels for the points are provided from *midlocmeasuringpoint*. As well, the **weight** option is influenced by *onset*. No border means 0, thick border means 1.
+
+```{r mapYear, cache = T, eval=T}
+library(leaflet)
+library(Hmisc)
 
 mdl$cutyear <- cut2(x = mdl$year, g = 5)
 
 groups <-  levels(mdl$cutyear)
-groupColors <-  colorFactor(palette = rainbow(n = 5), domain = mdl$cutyear)
+groupColors <-  colorFactor(palette = rainbow(n = 5), 
+                            domain = mdl$cutyear)
 
 mapY = mdl %>% 
         leaflet() %>% 
           addTiles()
-        
+
 for(i in 1:5){
-mapY = mapY %>% addCircleMarkers(lat = subset(mdl, cutyear == groups[i])$latitude, 
-                         lng = subset(mdl, cutyear == groups[i])$longitude,
-                         clusterOptions = markerClusterOptions(),
-                         label = subset(mdl, cutyear == groups[i])$midlocmeasuringpoint,
-                         color = groupColors(subset(mdl, cutyear == groups[i])$cutyear),
-                         group = groups[i])
+        mapY = mapY %>%
+                addCircleMarkers(lat = subset(mdl, cutyear == groups[i])$latitude, 
+                                 lng = subset(mdl, cutyear == groups[i])$longitude,
+                                 clusterOptions = markerClusterOptions(),
+                                 label = subset(mdl, cutyear == groups[i])$midlocmeasuringpoint,
+                                 color = groupColors(subset(mdl, cutyear == groups[i])$cutyear),
+                                 weight = (subset(mdl, cutyear == groups[i])$onset + 1)^2,
+                                 group = groups[i])
 }
 
 mapY %>% 
@@ -40,35 +62,58 @@ mapY %>%
                   pal = groupColors, 
                   values = mdl$cutyear)
 ```
+Thought was spared on whether to parse it by month and day, but that's not as interesting unless it's in the scope of a `shiny` application as the values are evenly distributed across both levels.
 
-```{r mapPrecision, cache=TRUE}
-library(leaflet)
-#mdl <- read.csv("c:/Users/Ian/Downloads/midloc-v1-1-MIDLOC_1.1.csv", header = T)
-#mdl <- mdl[-grep(-9999.000000, mdl$latitude),]
+```{r month/day, cache=T}
+table(mdl$month)
+table(mdl$day)
+```
 
+
+###By Precision
+The second visualization will organize the data by *precision*, or the scope of the conflict. For reference while looking at the map,
+
+* **1**: Actual Conflict Point
+* **2**: Approximate Conflict Point
+* **3**: Sub-national Conflict(region, district, area)
+* **4**: Contested Area(border, river, road)
+* **5**: Large Contested Area(nation, body of water)
+
+Both radius and color and layer are being modified by *precision*. As in the last graph, **weight** is influenced by *onset* 
+
+```{r mapPrecision, cache=T}
 groups <- levels(as.factor(mdl$precision))
-groupColors <- colorFactor(palette = rainbow(n = 5), domain = as.factor(mdl$precision))
+groupColors <- colorFactor(palette = rainbow(n = 5), 
+                           domain = as.factor(mdl$precision))
 
 mapP = mdl %>% 
         leaflet() %>% 
-        addTiles()
+          addTiles()
 
 for(i in 1:5){
-        mapP = mapP %>% addCircleMarkers(lat = subset(mdl, precision == groups[i])$latitude, 
-                                         lng = subset(mdl, precision == groups[i])$longitude,
-                                         clusterOptions = markerClusterOptions(),
-                                         label = subset(mdl, precision == groups[i])$midlocmeasuringpoint,
-                                         color = groupColors(subset(mdl, precision == groups[i])$precision),
-                                         radius = subset(mdl, precision == groups[i])$precision^2,
-                                         group = groups[i])
+        mapP = mapP %>%
+                addCircleMarkers(lat = subset(mdl, precision == groups[i])$latitude, 
+                                 lng = subset(mdl, precision == groups[i])$longitude,
+                                 clusterOptions = markerClusterOptions(),
+                                 label = subset(mdl, precision == groups[i])$midlocmeasuringpoint,
+                                 color = groupColors(subset(mdl, precision == groups[i])$precision),
+                                 radius = subset(mdl, precision == groups[i])$precision^2,
+                                 weight = (subset(mdl, precision == groups[i])$onset + 1)^2,
+                                 group = groups[i])
 }
 
 mapP %>% 
         addLayersControl(overlayGroups = groups) %>% 
         addLegend(position = "topright", 
                   pal = groupColors, 
-                  values = c("1: Contested Point", 
-                             "2: Approximate Contested Point", 
-                             "3: Subnational Contested Area", 
-                             "4: Contested Border/River/Lake", 
-                             "5: Contested National Area"))
+                  values = groups)
+```
+
+As evidenced by the map, the smaller disputes are part of ongoing action, while the larger are inciting incidents.
+
+```{r tap}
+tapply(mdl$precision, mdl$onset, table)
+```
+
+##Conclusion
+The purpose of this report was to exhibit `leaflet` functionality. This only scratched the surface of both the power of the package and the utility of this dataset.  
